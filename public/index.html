@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Etsy Listing Generator</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="header">
+        <h1>Etsy Listing Generator</h1>
+        <p class="subtitle">
+          Fill in your product details and get an SEO-optimized title,
+          description, and tags for your digital product.
+        </p>
+      </header>
+
+      <form id="listing-form" class="form">
+        <div class="field">
+          <label for="product-name">Product Name</label>
+          <input
+            type="text"
+            id="product-name"
+            name="productName"
+            required
+            placeholder="e.g. Minimal Wedding Invitation Template"
+          />
+        </div>
+
+        <div class="field">
+          <label for="product-description">Product Description</label>
+          <textarea
+            id="product-description"
+            name="productDescription"
+            rows="5"
+            required
+            placeholder="What is it, who is it for, what style or aesthetic?"
+          ></textarea>
+        </div>
+
+        <div class="field">
+          <label for="file-type">File Type</label>
+          <select id="file-type" name="fileType" required>
+            <option value="" disabled selected>Select a file type</option>
+            <option value="Canva Template">Canva Template</option>
+            <option value="PDF Printable">PDF Printable</option>
+            <option value="Notion Template">Notion Template</option>
+            <option value="Digital Art / PNG">Digital Art / PNG</option>
+            <option value="Google Sheets Template">Google Sheets Template</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <button type="submit" id="submit-btn" class="btn-primary">
+          Generate My Listing
+        </button>
+      </form>
+
+      <p id="error-message" class="error-message" hidden></p>
+
+      <section id="results" class="results" hidden>
+        <h2>Your Listing</h2>
+
+        <article class="result-block">
+          <div class="result-header">
+            <h3>Title</h3>
+            <button type="button" class="btn-copy" data-copy="title">
+              Copy
+            </button>
+          </div>
+          <p id="result-title" class="result-content"></p>
+        </article>
+
+        <article class="result-block">
+          <div class="result-header">
+            <h3>Description</h3>
+            <button type="button" class="btn-copy" data-copy="description">
+              Copy
+            </button>
+          </div>
+          <div id="result-description" class="result-content"></div>
+        </article>
+
+        <article class="result-block">
+          <div class="result-header">
+            <h3>Tags</h3>
+            <button type="button" class="btn-copy" data-copy="tags">
+              Copy
+            </button>
+          </div>
+          <p id="result-tags" class="result-content"></p>
+        </article>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
