@@ -52,15 +52,25 @@
           </select>
         </div>
 
-        <button type="submit" id="submit-btn" class="btn-primary">
-          Generate My Listing
-        </button>
+        <div class="form-actions">
+          <button type="submit" id="submit-btn" class="btn-primary">
+            Generate My Listing
+          </button>
+          <button type="button" id="reset-btn" class="btn-secondary">
+            Start Over
+          </button>
+        </div>
       </form>
 
       <p id="error-message" class="error-message" hidden></p>
 
       <section id="results" class="results" hidden>
-        <h2>Your Listing</h2>
+        <div class="results-header">
+          <h2>Your Listing</h2>
+          <button type="button" id="copy-all-btn" class="btn-copy">
+            Copy All
+          </button>
+        </div>
 
         <article class="result-block">
           <div class="result-header">

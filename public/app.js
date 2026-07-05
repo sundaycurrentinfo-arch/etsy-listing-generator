@@ -1,5 +1,7 @@
 const form = document.getElementById("listing-form");
 const submitBtn = document.getElementById("submit-btn");
+const resetBtn = document.getElementById("reset-btn");
+const copyAllBtn = document.getElementById("copy-all-btn");
 const errorMessage = document.getElementById("error-message");
 const resultsSection = document.getElementById("results");
 const resultTitle = document.getElementById("result-title");
@@ -27,19 +29,33 @@ function showResults(data) {
   resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-async function copyText(text, button) {
+function resetForm() {
+  form.reset();
+  form.fileType.selectedIndex = 0;
+  listingData = { title: "", description: "", tags: "" };
+  resultsSection.hidden = true;
+  hideError();
+  form.productName.focus();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function formatAllListing(data) {
+  return `TITLE:\n${data.title}\n\nDESCRIPTION:\n${data.description}\n\nTAGS:\n${data.tags}`;
+}
+
+async function copyText(text, button, labels = { default: "Copy", success: "Copied!" }) {
   try {
     await navigator.clipboard.writeText(text);
-    button.textContent = "Copied!";
+    button.textContent = labels.success;
     button.classList.add("copied");
     setTimeout(() => {
-      button.textContent = "Copy";
+      button.textContent = labels.default;
       button.classList.remove("copied");
     }, 2000);
   } catch {
     button.textContent = "Failed";
     setTimeout(() => {
-      button.textContent = "Copy";
+      button.textContent = labels.default;
     }, 2000);
   }
 }
@@ -80,7 +96,17 @@ form.addEventListener("submit", async (event) => {
 
 document.querySelectorAll(".btn-copy").forEach((button) => {
   button.addEventListener("click", () => {
+    if (button.id === "copy-all-btn") {
+      copyText(formatAllListing(listingData), button, {
+        default: "Copy All",
+        success: "Copied!",
+      });
+      return;
+    }
+
     const key = button.dataset.copy;
     copyText(listingData[key], button);
   });
 });
+
+resetBtn.addEventListener("click", resetForm);

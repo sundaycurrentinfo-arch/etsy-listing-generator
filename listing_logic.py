@@ -93,7 +93,7 @@ def call_anthropic(api_key, product_name, product_description, file_type):
 
 
 def generate_listing(body):
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         return 500, {
             "error": "Server is missing ANTHROPIC_API_KEY. Add it to your environment."
