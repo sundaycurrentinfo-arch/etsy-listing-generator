@@ -87,6 +87,16 @@ if (sessionStorage.getItem(ACCESS_KEY) === "true") {
   grantAccess();
 }
 
+async function parseJsonResponse(response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: "Unexpected server response. Please try again." };
+  }
+}
+
 accessForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   hideAccessError();
@@ -95,14 +105,18 @@ accessForm.addEventListener("submit", async (event) => {
   accessBtn.disabled = true;
   accessBtn.textContent = "Unlocking…";
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   try {
     const response = await fetch("/api/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
+      signal: controller.signal,
     });
 
-    const data = await response.json();
+    const data = await parseJsonResponse(response);
 
     if (!response.ok) {
       showAccessError(data.error || "Something went wrong. Please try again.");
@@ -111,9 +125,14 @@ accessForm.addEventListener("submit", async (event) => {
 
     sessionStorage.setItem(ACCESS_KEY, "true");
     grantAccess();
-  } catch {
-    showAccessError("Could not reach the server. Please try again.");
+  } catch (error) {
+    if (error.name === "AbortError") {
+      showAccessError("Request timed out. Please try again.");
+    } else {
+      showAccessError("Could not reach the server. Please try again.");
+    }
   } finally {
+    clearTimeout(timeoutId);
     accessBtn.disabled = false;
     accessBtn.textContent = "Get Free Access";
   }
