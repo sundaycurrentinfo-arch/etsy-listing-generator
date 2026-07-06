@@ -19,8 +19,28 @@ def validate_email(email):
     return email
 
 
+def _blob_config():
+    oidc_token = os.environ.get("VERCEL_OIDC_TOKEN", "").strip()
+    store_id = os.environ.get("BLOB_STORE_ID", "").strip()
+    if oidc_token and store_id:
+        store_slug = store_id.removeprefix("store_")
+        return {
+            "token": oidc_token,
+            "url": f"https://{store_slug}.private.blob.vercel-storage.com/{BLOB_PATH}",
+        }
+
+    rw_token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
+    if rw_token:
+        return {
+            "token": rw_token,
+            "url": f"https://blob.vercel-storage.com/{BLOB_PATH}",
+        }
+
+    return None
+
+
 def _use_blob():
-    return bool(os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip())
+    return _blob_config() is not None
 
 
 def _ensure_local_file():
@@ -57,10 +77,10 @@ def _write_local_rows(rows):
 
 
 def _blob_get():
-    token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
+    config = _blob_config()
     req = request.Request(
-        f"https://blob.vercel-storage.com/{BLOB_PATH}",
-        headers={"Authorization": f"Bearer {token}"},
+        config["url"],
+        headers={"Authorization": f"Bearer {config['token']}"},
         method="GET",
     )
     try:
@@ -73,12 +93,12 @@ def _blob_get():
 
 
 def _blob_put(content):
-    token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
+    config = _blob_config()
     req = request.Request(
-        f"https://blob.vercel-storage.com/{BLOB_PATH}",
+        config["url"],
         data=content.encode("utf-8"),
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {config['token']}",
             "Content-Type": "text/csv",
             "x-api-version": "7",
         },
@@ -105,7 +125,7 @@ def _write_rows(rows):
 def subscribe_email(email):
     if os.environ.get("VERCEL") and not _use_blob():
         raise RuntimeError(
-            "Email storage is not configured. Add BLOB_READ_WRITE_TOKEN in Vercel."
+            "Email storage is not configured. Connect a Blob store to this project in Vercel Storage."
         )
 
     email = validate_email(email)
