@@ -17,7 +17,8 @@ class handler(BaseHTTPRequestHandler):
 
         try:
             verify_export_secret(secret)
-            content = export_emails_csv()
+            oidc_token = self.headers.get("x-vercel-oidc-token")
+            content = export_emails_csv(oidc_token=oidc_token)
         except PermissionError:
             self.send_response(403)
             self.send_header("Content-Type", "application/json")

@@ -19,17 +19,30 @@ def validate_email(email):
     return email
 
 
-def _blob_config():
-    oidc_token = os.environ.get("VERCEL_OIDC_TOKEN", "").strip()
+def _store_slug():
     store_id = os.environ.get("BLOB_STORE_ID", "").strip()
-    if oidc_token and store_id:
-        store_slug = store_id.removeprefix("store_")
+    if not store_id:
+        return None
+    return store_id.removeprefix("store_")
+
+
+def _blob_config(oidc_token=None):
+    store_slug = _store_slug()
+    token = (oidc_token or os.environ.get("VERCEL_OIDC_TOKEN", "")).strip()
+    rw_token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
+
+    if token and store_slug:
         return {
-            "token": oidc_token,
+            "token": token,
             "url": f"https://{store_slug}.private.blob.vercel-storage.com/{BLOB_PATH}",
         }
 
-    rw_token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
+    if rw_token and store_slug:
+        return {
+            "token": rw_token,
+            "url": f"https://{store_slug}.private.blob.vercel-storage.com/{BLOB_PATH}",
+        }
+
     if rw_token:
         return {
             "token": rw_token,
@@ -39,8 +52,8 @@ def _blob_config():
     return None
 
 
-def _use_blob():
-    return _blob_config() is not None
+def _use_blob(oidc_token=None):
+    return _blob_config(oidc_token) is not None
 
 
 def _ensure_local_file():
@@ -76,8 +89,8 @@ def _write_local_rows(rows):
     EMAILS_CSV.write_text(_rows_to_csv(rows), encoding="utf-8")
 
 
-def _blob_get():
-    config = _blob_config()
+def _blob_get(oidc_token=None):
+    config = _blob_config(oidc_token)
     req = request.Request(
         config["url"],
         headers={"Authorization": f"Bearer {config['token']}"},
@@ -92,8 +105,8 @@ def _blob_get():
         raise
 
 
-def _blob_put(content):
-    config = _blob_config()
+def _blob_put(content, oidc_token=None):
+    config = _blob_config(oidc_token)
     req = request.Request(
         config["url"],
         data=content.encode("utf-8"),
@@ -108,41 +121,41 @@ def _blob_put(content):
         pass
 
 
-def _read_rows():
-    if _use_blob():
-        return _read_rows_from_csv(_blob_get())
+def _read_rows(oidc_token=None):
+    if _use_blob(oidc_token):
+        return _read_rows_from_csv(_blob_get(oidc_token))
     return _read_local_rows()
 
 
-def _write_rows(rows):
+def _write_rows(rows, oidc_token=None):
     content = _rows_to_csv(rows)
-    if _use_blob():
-        _blob_put(content)
+    if _use_blob(oidc_token):
+        _blob_put(content, oidc_token)
     else:
         _write_local_rows(rows)
 
 
-def subscribe_email(email):
-    if os.environ.get("VERCEL") and not _use_blob():
+def subscribe_email(email, oidc_token=None):
+    if os.environ.get("VERCEL") and not _use_blob(oidc_token):
         raise RuntimeError(
             "Email storage is not configured. Connect a Blob store to this project in Vercel Storage."
         )
 
     email = validate_email(email)
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    rows = _read_rows()
+    rows = _read_rows(oidc_token)
 
     if any(row["email"] == email for row in rows):
         return {"ok": True}
 
     rows.append({"email": email, "subscribed_at": timestamp})
-    _write_rows(rows)
+    _write_rows(rows, oidc_token)
     return {"ok": True}
 
 
-def export_emails_csv():
-    if _use_blob():
-        content = _blob_get()
+def export_emails_csv(oidc_token=None):
+    if _use_blob(oidc_token):
+        content = _blob_get(oidc_token)
     else:
         _ensure_local_file()
         content = EMAILS_CSV.read_text(encoding="utf-8")

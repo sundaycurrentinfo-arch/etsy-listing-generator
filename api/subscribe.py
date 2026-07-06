@@ -20,7 +20,8 @@ class handler(BaseHTTPRequestHandler):
             return
 
         try:
-            result = subscribe_email(body.get("email", ""))
+            oidc_token = self.headers.get("x-vercel-oidc-token")
+            result = subscribe_email(body.get("email", ""), oidc_token=oidc_token)
             self._json_response(200, result)
         except ValueError as exc:
             self._json_response(400, {"error": str(exc)})
