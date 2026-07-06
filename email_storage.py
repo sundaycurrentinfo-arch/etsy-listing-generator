@@ -1,0 +1,137 @@
+import csv
+import io
+import os
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib import error, request
+
+DATA_DIR = Path(__file__).parent / "data"
+EMAILS_CSV = DATA_DIR / "emails.csv"
+BLOB_PATH = "emails.csv"
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def validate_email(email):
+    email = email.strip().lower()
+    if not email or not EMAIL_PATTERN.match(email):
+        raise ValueError("Please enter a valid email address.")
+    return email
+
+
+def _use_blob():
+    return bool(os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip())
+
+
+def _ensure_local_file():
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if not EMAILS_CSV.exists():
+        EMAILS_CSV.write_text("email,subscribed_at\n", encoding="utf-8")
+
+
+def _read_rows_from_csv(content):
+    reader = csv.DictReader(io.StringIO(content))
+    return [
+        {"email": row["email"].strip().lower(), "subscribed_at": row["subscribed_at"]}
+        for row in reader
+        if row.get("email")
+    ]
+
+
+def _rows_to_csv(rows):
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=["email", "subscribed_at"])
+    writer.writeheader()
+    writer.writerows(rows)
+    return out.getvalue()
+
+
+def _read_local_rows():
+    _ensure_local_file()
+    return _read_rows_from_csv(EMAILS_CSV.read_text(encoding="utf-8"))
+
+
+def _write_local_rows(rows):
+    _ensure_local_file()
+    EMAILS_CSV.write_text(_rows_to_csv(rows), encoding="utf-8")
+
+
+def _blob_get():
+    token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
+    req = request.Request(
+        f"https://blob.vercel-storage.com/{BLOB_PATH}",
+        headers={"Authorization": f"Bearer {token}"},
+        method="GET",
+    )
+    try:
+        with request.urlopen(req, timeout=30) as resp:
+            return resp.read().decode("utf-8")
+    except error.HTTPError as exc:
+        if exc.code == 404:
+            return "email,subscribed_at\n"
+        raise
+
+
+def _blob_put(content):
+    token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
+    req = request.Request(
+        f"https://blob.vercel-storage.com/{BLOB_PATH}",
+        data=content.encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "text/csv",
+            "x-api-version": "7",
+        },
+        method="PUT",
+    )
+    with request.urlopen(req, timeout=30):
+        pass
+
+
+def _read_rows():
+    if _use_blob():
+        return _read_rows_from_csv(_blob_get())
+    return _read_local_rows()
+
+
+def _write_rows(rows):
+    content = _rows_to_csv(rows)
+    if _use_blob():
+        _blob_put(content)
+    else:
+        _write_local_rows(rows)
+
+
+def subscribe_email(email):
+    if os.environ.get("VERCEL") and not _use_blob():
+        raise RuntimeError(
+            "Email storage is not configured. Add BLOB_READ_WRITE_TOKEN in Vercel."
+        )
+
+    email = validate_email(email)
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    rows = _read_rows()
+
+    if any(row["email"] == email for row in rows):
+        return {"ok": True}
+
+    rows.append({"email": email, "subscribed_at": timestamp})
+    _write_rows(rows)
+    return {"ok": True}
+
+
+def export_emails_csv():
+    if _use_blob():
+        content = _blob_get()
+    else:
+        _ensure_local_file()
+        content = EMAILS_CSV.read_text(encoding="utf-8")
+    return content
+
+
+def verify_export_secret(provided):
+    secret = os.environ.get("EXPORT_SECRET", "").strip()
+    if not secret:
+        raise RuntimeError("Export is not configured. Add EXPORT_SECRET to your environment.")
+    if provided != secret:
+        raise PermissionError("Invalid export secret.")

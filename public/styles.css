@@ -36,6 +36,29 @@ body {
   font-size: 1rem;
 }
 
+.access-gate {
+  padding: 1.5rem;
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+}
+
+.access-gate h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.access-copy {
+  margin: 0 0 1.25rem;
+  color: #555;
+}
+
+.access-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .form {
   display: flex;
   flex-direction: column;

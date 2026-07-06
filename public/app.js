@@ -1,7 +1,13 @@
+const ACCESS_KEY = "etsy-listing-access";
+
+const accessGate = document.getElementById("access-gate");
+const accessForm = document.getElementById("access-form");
+const accessBtn = document.getElementById("access-btn");
+const accessError = document.getElementById("access-error");
+const appContent = document.getElementById("app-content");
 const form = document.getElementById("listing-form");
 const submitBtn = document.getElementById("submit-btn");
 const resetBtn = document.getElementById("reset-btn");
-const copyAllBtn = document.getElementById("copy-all-btn");
 const errorMessage = document.getElementById("error-message");
 const resultsSection = document.getElementById("results");
 const resultTitle = document.getElementById("result-title");
@@ -9,6 +15,23 @@ const resultDescription = document.getElementById("result-description");
 const resultTags = document.getElementById("result-tags");
 
 let listingData = { title: "", description: "", tags: "" };
+
+function showAccessError(message) {
+  accessError.textContent = message;
+  accessError.hidden = false;
+}
+
+function hideAccessError() {
+  accessError.hidden = true;
+  accessError.textContent = "";
+}
+
+function grantAccess() {
+  accessGate.hidden = true;
+  appContent.hidden = false;
+  hideAccessError();
+  form.productName.focus();
+}
 
 function showError(message) {
   errorMessage.textContent = message;
@@ -59,6 +82,42 @@ async function copyText(text, button, labels = { default: "Copy", success: "Copi
     }, 2000);
   }
 }
+
+if (sessionStorage.getItem(ACCESS_KEY) === "true") {
+  grantAccess();
+}
+
+accessForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  hideAccessError();
+
+  const email = accessForm.email.value.trim();
+  accessBtn.disabled = true;
+  accessBtn.textContent = "Unlocking…";
+
+  try {
+    const response = await fetch("/api/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      showAccessError(data.error || "Something went wrong. Please try again.");
+      return;
+    }
+
+    sessionStorage.setItem(ACCESS_KEY, "true");
+    grantAccess();
+  } catch {
+    showAccessError("Could not reach the server. Please try again.");
+  } finally {
+    accessBtn.disabled = false;
+    accessBtn.textContent = "Get Free Access";
+  }
+});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
