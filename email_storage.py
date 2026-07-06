@@ -4,11 +4,13 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib import error, request
+from urllib import error, parse, request
 
 DATA_DIR = Path(__file__).parent / "data"
 EMAILS_CSV = DATA_DIR / "emails.csv"
 BLOB_PATH = "emails.csv"
+BLOB_API = "https://vercel.com/api/blob"
+API_VERSION = "12"
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -19,33 +21,48 @@ def validate_email(email):
     return email
 
 
-def _store_slug():
+def _blob_token():
+    return os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
+
+
+def _store_id():
     store_id = os.environ.get("BLOB_STORE_ID", "").strip()
-    if not store_id:
-        return None
-    return store_id.removeprefix("store_")
+    if store_id:
+        return store_id.removeprefix("store_")
 
+    token = _blob_token()
+    parts = token.split("_")
+    if len(parts) > 3 and parts[3]:
+        return parts[3]
 
-def _blob_config():
-    rw_token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
-    if not rw_token:
-        return None
-
-    store_slug = _store_slug()
-    if store_slug:
-        return {
-            "token": rw_token,
-            "url": f"https://{store_slug}.private.blob.vercel-storage.com/{BLOB_PATH}",
-        }
-
-    return {
-        "token": rw_token,
-        "url": f"https://blob.vercel-storage.com/{BLOB_PATH}",
-    }
+    return None
 
 
 def _use_blob():
-    return _blob_config() is not None
+    return bool(_blob_token())
+
+
+def _blob_headers(extra=None):
+    headers = {
+        "Authorization": f"Bearer {_blob_token()}",
+        "x-api-version": API_VERSION,
+    }
+
+    store_id = _store_id()
+    if store_id:
+        headers["x-vercel-blob-store-id"] = store_id
+
+    if extra:
+        headers.update(extra)
+
+    return headers
+
+
+def _blob_private_url():
+    store_id = _store_id()
+    if not store_id:
+        raise RuntimeError("Could not determine Blob store ID.")
+    return f"https://{store_id}.private.blob.vercel-storage.com/{BLOB_PATH}"
 
 
 def _ensure_local_file():
@@ -82,10 +99,9 @@ def _write_local_rows(rows):
 
 
 def _blob_get():
-    config = _blob_config()
     req = request.Request(
-        config["url"],
-        headers={"Authorization": f"Bearer {config['token']}"},
+        _blob_private_url(),
+        headers=_blob_headers(),
         method="GET",
     )
     try:
@@ -94,27 +110,28 @@ def _blob_get():
     except error.HTTPError as exc:
         if exc.code == 404:
             return "email,subscribed_at\n"
-        body = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Could not read email storage ({exc.code}).") from exc
 
 
 def _blob_put(content):
-    config = _blob_config()
+    put_url = f"{BLOB_API}/?{parse.urlencode({'pathname': BLOB_PATH})}"
     req = request.Request(
-        config["url"],
+        put_url,
         data=content.encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {config['token']}",
-            "Content-Type": "text/csv",
-            "x-api-version": "7",
-        },
+        headers=_blob_headers(
+            {
+                "x-vercel-blob-access": "private",
+                "x-content-type": "text/csv",
+                "x-allow-overwrite": "1",
+                "x-add-random-suffix": "0",
+            }
+        ),
         method="PUT",
     )
     try:
-        with request.urlopen(req, timeout=15):
-            pass
+        with request.urlopen(req, timeout=15) as resp:
+            resp.read()
     except error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Could not save email ({exc.code}).") from exc
 
 
